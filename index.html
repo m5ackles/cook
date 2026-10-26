@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14110f">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>요리 음성 플레이어</title>
+<style>
+  :root{
+    --bg:#14110f; --surface:#1f1a17; --surface2:#2b2420; --line:#3a312b;
+    --text:#f6efe7; --muted:#a99c8f; --accent:#ff8a3d; --accent-ink:#1a0f06;
+    --ok:#4cd07d; --warn:#ffc04d; --danger:#ff6464;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text)}
+  body{font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+       -webkit-tap-highlight-color:transparent;min-height:100dvh}
+  button,input,select{font:inherit;color:inherit}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+         padding:10px max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left))}
+  h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.02em}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+        background:var(--surface2);color:var(--muted);font-size:14px;white-space:nowrap}
+  .dot{width:10px;height:10px;border-radius:50%;background:#665a50}
+  .pill.on{color:var(--text)} .pill.on .dot{background:var(--ok);animation:pulse 1.4s infinite}
+  .pill.err .dot{background:var(--danger)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,208,125,.6)}70%{box-shadow:0 0 0 9px rgba(76,208,125,0)}100%{box-shadow:0 0 0 0 rgba(76,208,125,0)}}
+
+  .layout{display:grid;gap:12px;padding:12px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .player-wrap{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;margin:0 auto}
+  #player{position:absolute;inset:0;width:100%;height:100%;border:0}
+  #empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+         color:var(--muted);text-align:center;padding:16px;font-size:15px}
+  #empty b{color:var(--text);font-size:18px}
+  #flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);opacity:0;pointer-events:none;
+         background:rgba(0,0,0,.72);color:#fff;font-size:clamp(22px,5vw,40px);font-weight:800;padding:14px 26px;border-radius:18px;
+         transition:opacity .15s,transform .15s;white-space:nowrap}
+  #flash.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  .panel{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .url-row{display:flex;gap:8px}
+  .url-row input{flex:1;min-width:0;height:52px;padding:0 14px;border-radius:12px;border:1px solid var(--line);
+                 background:var(--surface);font-size:16px}
+  .url-row input:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .btn{border:0;border-radius:14px;background:var(--surface2);cursor:pointer;touch-action:manipulation;user-select:none}
+  .btn:active{transform:scale(.97)}
+  .url-row .btn{height:52px;padding:0 18px;background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+  .mic{display:flex;align-items:center;justify-content:center;gap:10px;min-height:68px;font-size:20px;font-weight:800;
+       background:var(--accent);color:var(--accent-ink)}
+  .mic.on{background:var(--ok);color:#06210f}
+
+  .heard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .heard .label{font-size:13px;color:var(--muted);margin-bottom:4px}
+  #heard{font-size:20px;font-weight:600;min-height:28px;word-break:keep-all;overflow-wrap:anywhere}
+  #heard.interim{color:var(--muted)}
+  #status{font-size:14px;color:var(--muted);min-height:20px}
+  #status.warn{color:var(--warn)} #status.err{color:var(--danger)}
+
+  .controls{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:10px}
+  .controls .btn{min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:28px}
+  .controls .btn small{font-size:14px;color:var(--muted)}
+  #playBtn{background:#3a2c22}
+
+  details{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 14px}
+  summary{cursor:pointer;padding:10px 0;font-weight:700;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";float:right;color:var(--muted)} details[open] summary::after{content:"－"}
+  .cmds{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px;padding-bottom:12px}
+  .cmds dt{font-weight:700} .cmds dd{margin:0;color:var(--muted)}
+  .setting{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+  .setting select,.setting input[type=text]{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);padding:0 10px;font-size:16px}
+  .setting input[type=text]{width:120px}
+  .setting input[type=checkbox]{width:24px;height:24px;accent-color:var(--accent)}
+  .tip{font-size:13px;color:var(--muted);line-height:1.5;padding:8px 0 12px;border-top:1px solid var(--line)}
+
+  /* 가로 모드 (태블릿, 폰 가로) */
+  @media (orientation:landscape) and (min-width:700px){
+    .layout{grid-template-columns:minmax(0,1fr) minmax(300px,360px);align-items:start}
+    .player-wrap{width:min(100%, calc((100dvh - 80px) * 16 / 9))}
+    .panel{max-height:calc(100dvh - 70px);overflow-y:auto;padding-bottom:4px}
+  }
+  /* 폰 가로: 높이가 낮을 때 버튼 축소 */
+  @media (orientation:landscape) and (max-height:500px){
+    header{display:none}
+    .layout{padding-top:8px}
+    .player-wrap{width:min(100%, calc((100dvh - 20px) * 16 / 9))}
+    .panel{max-height:calc(100dvh - 16px)}
+    .mic{min-height:54px;font-size:17px}
+    .controls .btn{min-height:64px;font-size:24px}
+    #heard{font-size:17px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍳 요리 음성 플레이어</h1>
+  <span class="pill" id="pill"><span class="dot"></span><span id="pillText">음성 꺼짐</span></span>
+</header>
+
+<main class="layout">
+  <section class="stage">
+    <div class="player-wrap">
+      <div id="player"></div>
+      <div id="empty"><b>유튜브 링크를 넣어주세요</b>영상을 연 뒤 처음 한 번은 화면을 눌러 재생해 주세요</div>
+      <div id="flash"></div>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <form class="url-row" id="urlForm" autocomplete="off">
+      <input id="url" type="url" inputmode="url" placeholder="유튜브 링크 붙여넣기" aria-label="유튜브 링크">
+      <button class="btn" type="submit">열기</button>
+    </form>
+
+    <button class="btn mic" id="micBtn" type="button">🎤 <span id="micText">음성 명령 켜기</span></button>
+
+    <div class="heard">
+      <div class="label">들은 말</div>
+      <div id="heard">—</div>
+      <div id="status"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="backBtn" type="button">⏪<small id="backLabel">5초 뒤로</small></button>
+      <button class="btn" id="playBtn" type="button"><span id="playIcon">▶</span><small id="playLabel">재생</small></button>
+      <button class="btn" id="fwdBtn" type="button">⏩<small id="fwdLabel">5초 앞으로</small></button>
+    </div>
+
+    <details>
+      <summary>말로 할 수 있는 것</summary>
+      <dl class="cmds">
+        <dt>멈춰 · 정지 · 스톱</dt><dd>일시정지</dd>
+        <dt>재생 · 계속 · 틀어</dt><dd>재생</dd>
+        <dt>뒤로 · 되감기</dt><dd>설정한 시간만큼 뒤로</dd>
+        <dt>앞으로 · 넘겨</dt><dd>설정한 시간만큼 앞으로</dd>
+        <dt>10초 뒤로 · 1분 앞으로</dt><dd>말한 시간만큼 이동</dd>
+        <dt>처음부터</dt><dd>처음으로 이동</dd>
+      </dl>
+    </details>
+
+    <details>
+      <summary>설정</summary>
+      <div class="setting">
+        <label for="skipSel">기본 이동 시간</label>
+        <select id="skipSel"><option value="3">3초</option><option value="5">5초</option><option value="10">10초</option><option value="15">15초</option></select>
+      </div>
+      <div class="setting">
+        <label for="wakeChk">호출어 사용</label>
+        <input id="wakeChk" type="checkbox">
+      </div>
+      <div class="setting">
+        <label for="wakeWord">호출어</label>
+        <input id="wakeWord" type="text" placeholder="요리야">
+      </div>
+      <p class="tip">영상 속 말소리가 명령으로 잘못 인식되면 영상 볼륨을 조금 낮추거나 호출어를 켜세요. 호출어를 켜면 "요리야 멈춰"처럼 호출어를 먼저 말해야 해요.</p>
+    </details>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem('cvp:'+k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+    set(k, v){ try{ localStorage.setItem('cvp:'+k, JSON.stringify(v)); }catch(e){} }
+  };
+
+  const settings = {
+    skip: store.get('skip', 5),
+    wake: store.get('wake', false),
+    wakeWord: store.get('wakeWord', '요리야')
+  };
+
+  /* ---------- 화면 피드백 ---------- */
+  let flashTimer;
+  function flash(msg){
+    const el = $('#flash');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('show'), 1100);
+  }
+  function setStatus(msg, kind){
+    const el = $('#status');
+    el.textContent = msg || '';
+    el.className = kind || '';
+  }
+
+  /* ---------- 유튜브 링크 해석 ---------- */
+  function parseT(t){
+    if(!t) return 0;
+    if(/^\d+$/.test(t)) return +t;
+    const m = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+    return m ? (+m[1]||0)*3600 + (+m[2]||0)*60 + (+m[3]||0) : 0;
+  }
+  function parseYouTube(input){
+    input = (input || '').trim();
+    if(!input) return null;
+    if(/^[\w-]{11}$/.test(input)) return { id: input, start: 0 };
+    let u;
+    try{ u = new URL(/^https?:\/\//i.test(input) ? input : 'https://' + input); }catch(e){ return null; }
+    const host = u.hostname.replace(/^(www|m|music)\./, '');
+    let id = null;
+    if(host === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+    else if(host === 'youtube.com' || host === 'youtube-nocookie.com'){
+      id = u.searchParams.get('v');
+      if(!id){ const m = u.pathname.match(/\/(shorts|live|embed|v)\/([\w-]{11})/); if(m) id = m[2]; }
+    }
+    if(!id || !/^[\w-]{11}$/.test(id)) return null;
+    return { id, start: parseT(u.searchParams.get('t') || u.searchParams.get('start') || '') };
+  }
+
+  /* ---------- 유튜브 플레이어 ---------- */
+  let player = null, playerReady = false, apiReady = false, pending = null;
+
+  window.onYouTubeIframeAPIReady = function(){
+    apiReady = true;
+    if(pending && !player) createPlayer(pending);
+  };
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  tag.onerror = () => setStatus('유튜브를 불러오지 못했어요. 인터넷 연결을 확인해주세요.', 'err');
+  document.head.appendChild(tag);
+
+  function createPlayer(v){
+    player = new YT.Player('player', {
+      videoId: v.id,
+      playerVars: Object.assign(
+        { playsinline: 1, rel: 0, start: v.start || undefined },
+        /^https?:$/.test(location.protocol) ? { origin: location.origin } : {}
+      ),
+      events: {
+        onReady(){
+          playerReady = true;
+          if(pending && pending.id !== v.id) player.cueVideoById({ videoId: pending.id, startSeconds: pending.start });
+          updatePlayBtn();
+        },
+        onStateChange: updatePlayBtn,
+        onError(e){
+          const msg = { 2: '링크가 올바르지 않아요.', 5: '이 기기에서 재생할 수 없는 영상이에요.',
+                        100: '영상을 찾을 수 없어요 (삭제되었거나 비공개).',
+                        101: '이 영상은 다른 곳에서 재생하는 게 막혀 있어요.', 150: '이 영상은 다른 곳에서 재생하는 게 막혀 있어요.',
+                        153: '유튜브가 사이트 주소를 확인하지 못했어요. 파일을 직접 열지 말고 https 주소로 열어주세요.' }[e.data];
+          setStatus(msg || '재생 중 오류가 났어요.', 'err');
+        }
+      }
+    });
+  }
+  function loadVideo(v){
+    $('#empty').hidden = true;
+    pending = v;
+    if(player && playerReady) player.cueVideoById({ videoId: v.id, startSeconds: v.start });
+    else if(apiReady && !player) createPlayer(v);
+  }
+  function ready(){
+    if(!playerReady){ flash('먼저 영상을 열어주세요'); return false; }
+    return true;
+  }
+  function isPlaying(){
+    return playerReady && player.getPlayerState() === YT.PlayerState.PLAYING;
+  }
+  function updatePlayBtn(){
+    const playing = isPlaying();
+    $('#playIcon').textContent = playing ? '⏸' : '▶';
+    $('#playLabel').textContent = playing ? '일시정지' : '재생';
+  }
+
+  /* ---------- 명령 실행 ---------- */
+  function fmtSec(s){ return s >= 60 && s % 60 === 0 ? (s/60) + '분' : s + '초'; }
+  function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); }
+  function doPlay(){ if(!ready()) return; player.playVideo(); flash('▶ 재생'); }
+  function seekBy(sec){
+    if(!ready()) return;
+    const d = player.getDuration() || Infinity;
+    const t = Math.min(Math.max(0, player.getCurrentTime() + sec), Math.max(0, d - 0.5));
+    player.seekTo(t, true);
+    flash(sec < 0 ? '⏪ ' + fmtSec(-sec) + ' 뒤로' : '⏩ ' + fmtSec(sec) + ' 앞으로');
+  }
+  function doRestart(){ if(!ready()) return; player.seekTo(0, true); flash('⏮ 처음부터'); }
+
+  function runCommand(c){
+    switch(c.type){
+      case 'pause': doPause(); break;
+      case 'play': doPlay(); break;
+      case 'seek': seekBy(c.sec); break;
+      case 'restart': doRestart(); break;
+    }
+  }
+
+  /* ---------- 말 → 명령 해석 ---------- */
+  const KD = { 일:1, 이:2, 삼:3, 사:4, 오:5, 육:6, 칠:7, 팔:8, 구:9 };
+  function koNumToDigits(t){
+    return t
+      .replace(/스무(?=초)/g, '20').replace(/열(?=초)/g, '10').replace(/다섯(?=초)/g, '5')
+      .replace(/([이삼사오육칠팔구]?)십([일이삼사오육칠팔구]?)(?=초|분)/g,
+               (m, a, b) => String((a ? KD[a] : 1) * 10 + (b ? KD[b] : 0)))
+      .replace(/(^|[^\d])([일이삼사오육칠팔구])(?=초|분)/g, (m, p, a) => p + KD[a]);
+  }
+  const CMD_RE = /(\d+)(초|분)(?:만큼)?(뒤로|전으로|앞으로|뒤|앞)|처음부터|일시정지|멈춰|멈춤|정지|스톱|스탑|stop|pause|재생|플레이|play|계속|틀어|되감기|뒤로|앞으로|넘겨|건너뛰/g;
+
+  function parseCommands(raw){
+    let t = raw.toLowerCase().replace(/\s+/g, '');
+    if(settings.wake){
+      const w = (settings.wakeWord || '').replace(/\s+/g, '').toLowerCase();
+      if(w){
+        const idx = t.indexOf(w);
+        if(idx < 0) return [];
+        t = t.slice(idx + w.length);
+      }
+    }
+    t = koNumToDigits(t);
+    const out = [];
+    let m;
+    CMD_RE.lastIndex = 0;
+    while((m = CMD_RE.exec(t))){
+      const w = m[0];
+      if(m[1]){
+        let sec = Math.min(+m[1] * (m[2] === '분' ? 60 : 1), 3600);
+        if(sec <= 0) continue;
+        const back = /^(뒤로|전으로|뒤)$/.test(m[3]);
+        out.push({ type: 'seek', sec: back ? -sec : sec });
+      }
+      else if(w === '처음부터') out.push({ type: 'restart' });
+      else if(/^(일시정지|멈춰|멈춤|정지|스톱|스탑|stop|pause)$/.test(w)) out.push({ type: 'pause' });
+      else if(/^(재생|플레이|play|계속|틀어)$/.test(w)) out.push({ type: 'play' });
+      else if(/^(되감기|뒤로)$/.test(w)) out.push({ type: 'seek', sec: -settings.skip });
+      else out.push({ type: 'seek', sec: settings.skip });
+    }
+    return out;
+  }
+
+  /* ---------- 음성 인식 ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, wantListening = false, recActive = false, session = 0;
+  let handled = new Map(), restartTimer, startedAt = 0, quickFails = 0;
+  let lastExec = { sig: '', time: 0, key: '' };
+
+  function setMicUI(){
+    const pill = $('#pill');
+    $('#micBtn').classList.toggle('on', wantListening);
+    $('#micText').textContent = wantListening ? '음성 명령 끄기' : '음성 명령 켜기';
+    pill.classList.toggle('on', wantListening && recActive);
+    $('#pillText').textContent = wantListening ? (recActive ? '듣는 중' : '연결 중…') : '음성 꺼짐';
+  }
+
+  function startRec(){
+    if(!wantListening) return;
+    const my = ++session;
+    handled = new Map();
+    try{ rec = new SR(); }catch(e){ setStatus('음성 인식을 시작할 수 없어요.', 'err'); return; }
+    rec.lang = 'ko-KR';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      if(my !== session) return;
+      recActive = true; startedAt = Date.now();
+      setStatus('');
+      setMicUI();
+    };
+    rec.onresult = e => {
+      if(my !== session) return;
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const r = e.results[i];
+        const text = r[0].transcript;
+        const heard = $('#heard');
+        heard.textContent = text.trim() || '—';
+        heard.classList.toggle('interim', !r.isFinal);
+
+        const cmds = parseCommands(text);
+        const key = my + ':' + i;
+        const done = handled.get(key) || 0;
+        for(let k = done; k < cmds.length; k++){
+          const c = cmds[k];
+          const sig = c.type + (c.sec || '');
+          const now = Date.now();
+          // 안드로이드에서 같은 말이 다른 결과로 중복되어 오는 경우 방지
+          if(sig === lastExec.sig && key !== lastExec.key && now - lastExec.time < 1500) continue;
+          lastExec = { sig, time: now, key };
+          runCommand(c);
+        }
+        if(cmds.length > done) handled.set(key, cmds.length);
+      }
+    };
+    rec.onerror = e => {
+      if(my !== session) return;
+      if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+        wantListening = false;
+        setStatus('마이크 권한이 꺼져 있어요. 브라우저 주소창의 사이트 설정에서 마이크를 허용해 주세요.', 'err');
+        releaseWakeLock();
+      } else if(e.error === 'network'){
+        setStatus('음성 인식에 인터넷 연결이 필요해요.', 'warn');
+      } else if(e.error === 'audio-capture'){
+        setStatus('마이크를 찾을 수 없어요.', 'err');
+      }
+      // no-speech, aborted 는 조용히 재시작
+    };
+    rec.onend = () => {
+      if(my !== session) return;
+      recActive = false;
+      setMicUI();
+      if(!wantListening) return;
+      // 금방 끊기기를 반복하면 재시작 간격을 늘림
+      quickFails = (Date.now() - startedAt < 1500) ? quickFails + 1 : 0;
+      const delay = Math.min(5000, 200 * Math.pow(2, quickFails));
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startRec, delay);
+    };
+
+    try{ rec.start(); }
+    catch(e){
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startRec, 800);
+    }
+    setMicUI();
+  }
+
+  function startListening(){
+    if(!SR){
+      setStatus('이 브라우저는 음성 인식을 지원하지 않아요. 크롬에서 열어주세요.', 'err');
+      return;
+    }
+    if(!window.isSecureContext){
+      setStatus('마이크는 https 주소에서만 쓸 수 있어요.', 'err');
+      return;
+    }
+    wantListening = true;
+    quickFails = 0;
+    requestWakeLock();
+    startRec();
+  }
+  function stopListening(){
+    wantListening = false;
+    session++;
+    clearTimeout(restartTimer);
+    try{ rec && rec.abort(); }catch(e){}
+    recActive = false;
+    releaseWakeLock();
+    setMicUI();
+  }
+
+  /* ---------- 화면 꺼짐 방지 ---------- */
+  let wakeLock = null;
+  async function requestWakeLock(){
+    try{
+      if('wakeLock' in navigator && document.visibilityState === 'visible' && !wakeLock){
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    }catch(e){}
+  }
+  function releaseWakeLock(){
+    try{ wakeLock && wakeLock.release(); }catch(e){}
+    wakeLock = null;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && wantListening){
+      requestWakeLock();
+      if(!recActive){ clearTimeout(restartTimer); quickFails = 0; startRec(); }
+    }
+  });
+
+  /* ---------- 버튼, 입력 ---------- */
+  $('#urlForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = parseYouTube($('#url').value);
+    if(!v){ setStatus('유튜브 링크를 확인해주세요.', 'err'); return; }
+    setStatus('');
+    store.set('lastUrl', $('#url').value.trim());
+    loadVideo(v);
+    $('#url').blur();
+  });
+  $('#micBtn').addEventListener('click', () => wantListening ? stopListening() : startListening());
+  $('#playBtn').addEventListener('click', () => isPlaying() ? doPause() : doPlay());
+  $('#backBtn').addEventListener('click', () => seekBy(-settings.skip));
+  $('#fwdBtn').addEventListener('click', () => seekBy(settings.skip));
+
+  document.addEventListener('keydown', e => {
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if(e.code === 'Space'){ e.preventDefault(); isPlaying() ? doPause() : doPlay(); }
+    else if(e.code === 'ArrowLeft') seekBy(-settings.skip);
+    else if(e.code === 'ArrowRight') seekBy(settings.skip);
+  });
+
+  function applySkipLabels(){
+    $('#backLabel').textContent = settings.skip + '초 뒤로';
+    $('#fwdLabel').textContent = settings.skip + '초 앞으로';
+  }
+  $('#skipSel').value = String(settings.skip);
+  $('#skipSel').addEventListener('change', e => { settings.skip = +e.target.value; store.set('skip', settings.skip); applySkipLabels(); });
+  $('#wakeChk').checked = settings.wake;
+  $('#wakeChk').addEventListener('change', e => { settings.wake = e.target.checked; store.set('wake', settings.wake); });
+  $('#wakeWord').value = settings.wakeWord;
+  $('#wakeWord').addEventListener('input', e => { settings.wakeWord = e.target.value.trim(); store.set('wakeWord', settings.wakeWord); });
+  applySkipLabels();
+
+  /* ---------- 시작 상태 ---------- */
+  const last = store.get('lastUrl', '');
+  if(last){
+    $('#url').value = last;
+    const v = parseYouTube(last);
+    if(v) loadVideo(v);
+  }
+  if(!SR) setStatus('이 브라우저는 음성 인식을 지원하지 않아요. 크롬을 권장해요.', 'warn');
+  else if(!window.isSecureContext) setStatus('마이크를 쓰려면 https 주소로 열어야 해요.', 'warn');
+  setMicUI();
+})();
+</script>
+</body>
+</html>
