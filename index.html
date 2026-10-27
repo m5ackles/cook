@@ -56,6 +56,11 @@
   .heard .label{font-size:13px;color:var(--muted);margin-bottom:4px}
   #heard{font-size:20px;font-weight:600;min-height:28px;word-break:keep-all;overflow-wrap:anywhere}
   #heard.interim{color:var(--muted)}
+  #meter{position:relative;height:10px;border-radius:5px;background:var(--surface2);margin:8px 0 4px;overflow:hidden}
+  #meter[hidden]{display:none}
+  #meterBar{height:100%;width:0;background:var(--muted);transition:width .05s}
+  #meterBar.hot{background:var(--accent)}
+  #meterMark{position:absolute;top:0;bottom:0;width:2px;background:var(--text);left:0}
   #status{font-size:14px;color:var(--muted);min-height:20px}
   #status.warn{color:var(--warn)} #status.err{color:var(--danger)}
 
@@ -74,11 +79,6 @@
   .setting select,.setting input[type=text]{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);padding:0 10px;font-size:16px}
   .setting input[type=text]{width:120px}
   .setting input[type=checkbox]{width:24px;height:24px;accent-color:var(--accent)}
-  #modelStatus{font-size:15px;font-weight:600;padding:2px 0 8px;color:var(--muted)}
-  #modelStatus.ok{color:var(--ok)} #modelStatus.warn{color:var(--warn)} #modelStatus.err{color:var(--danger)}
-  .steps{margin:0;padding:0 0 10px 20px;font-size:14px;line-height:1.6;color:var(--muted)}
-  .steps a{color:var(--accent)}
-  .filebtn{display:flex;align-items:center;justify-content:center;min-height:52px;margin-bottom:10px;font-weight:700}
   .tip{font-size:13px;color:var(--muted);line-height:1.5;padding:8px 0 12px;border-top:1px solid var(--line)}
 
   /* 가로 모드 (태블릿, 폰 가로) */
@@ -125,6 +125,7 @@
     <div class="heard">
       <div class="label">들은 말</div>
       <div id="heard">—</div>
+      <div id="meter" hidden><div id="meterBar"></div><div id="meterMark"></div></div>
       <div id="status"></div>
     </div>
 
@@ -133,17 +134,6 @@
       <button class="btn" id="playBtn" type="button"><span id="playIcon">▶</span><small id="playLabel">재생</small></button>
       <button class="btn" id="fwdBtn" type="button">⏩<small id="fwdLabel">5초 앞으로</small></button>
     </div>
-
-    <details id="modelBox">
-      <summary>음성 모델</summary>
-      <div id="modelStatus"></div>
-      <ol class="steps">
-        <li><a href="https://alphacephei.com/vosk/models/vosk-model-small-ko-0.22.zip" target="_blank" rel="noopener">한국어 음성 모델 (82MB, zip)</a>을 이 기기에 내려받으세요.</li>
-        <li>아래 버튼을 눌러 내려받은 zip 파일을 고르세요. 압축은 풀지 않아도 돼요.</li>
-      </ol>
-      <label class="btn filebtn">📁 모델 파일 선택<input id="modelFile" type="file" accept=".zip,.gz,.tgz,application/zip" hidden></label>
-      <p class="tip">한 번만 하면 돼요. 기기에 저장되어 다음부터는 자동으로 불러옵니다. 목소리는 인터넷으로 보내지 않고 기기 안에서 처리해요.</p>
-    </details>
 
     <details>
       <summary>말로 할 수 있는 것</summary>
@@ -154,6 +144,7 @@
         <dt>앞으로 · 넘겨</dt><dd>설정한 시간만큼 앞으로</dd>
         <dt>10초 뒤로 · 1분 앞으로</dt><dd>말한 시간만큼 이동</dd>
         <dt>처음부터</dt><dd>처음으로 이동</dd>
+        <dt>영상 재생 중</dt><dd>크게 한마디("잠깐!") 하면 멈춘 뒤 명령을 들어요</dd>
       </dl>
     </details>
 
@@ -164,6 +155,10 @@
         <select id="skipSel"><option value="3">3초</option><option value="5">5초</option><option value="10">10초</option><option value="15">15초</option></select>
       </div>
       <div class="setting">
+        <label for="sensSel">재생 중 멈춤 감도</label>
+        <select id="sensSel"><option value="2.5">민감하게</option><option value="4">보통</option><option value="6">둔하게</option></select>
+      </div>
+      <div class="setting">
         <label for="wakeChk">호출어 사용</label>
         <input id="wakeChk" type="checkbox">
       </div>
@@ -171,7 +166,7 @@
         <label for="wakeWord">호출어</label>
         <input id="wakeWord" type="text" placeholder="요리야">
       </div>
-      <p class="tip">영상 속 말소리가 명령으로 잘못 인식되면 영상 볼륨을 조금 낮추거나 호출어를 켜세요. 호출어를 켜면 "요리야 멈춰"처럼 호출어를 먼저 말해야 해요.</p>
+      <p class="tip">영상이 재생 중일 땐 음성 인식 대신 소리 크기로 멈춥니다. 영상 소리만으로 자꾸 멈추면 감도를 "둔하게", 내 목소리에 잘 안 멈추면 "민감하게"로 바꾸세요. 멈춘 뒤에는 명령을 말로 할 수 있어요.<br><br>영상 속 말소리가 명령으로 잘못 인식되면 영상 볼륨을 조금 낮추거나 호출어를 켜세요. 호출어를 켜면 "요리야 멈춰"처럼 호출어를 먼저 말해야 해요.</p>
     </details>
   </aside>
 </main>
@@ -187,7 +182,8 @@
   const settings = {
     skip: store.get('skip', 5),
     wake: store.get('wake', false),
-    wakeWord: store.get('wakeWord', '요리야')
+    wakeWord: store.get('wakeWord', '요리야'),
+    sens: store.get('sens', 4)
   };
 
   /* ---------- 화면 피드백 ---------- */
@@ -254,7 +250,7 @@
           if(pending && pending.id !== v.id) player.cueVideoById({ videoId: pending.id, startSeconds: pending.start });
           updatePlayBtn();
         },
-        onStateChange: updatePlayBtn,
+        onStateChange: () => { updatePlayBtn(); syncListenMode(); },
         onError(e){
           const msg = { 2: '링크가 올바르지 않아요.', 5: '이 기기에서 재생할 수 없는 영상이에요.',
                         100: '영상을 찾을 수 없어요 (삭제되었거나 비공개).',
@@ -287,7 +283,14 @@
   /* ---------- 명령 실행 ---------- */
   function fmtSec(s){ return s >= 60 && s % 60 === 0 ? (s/60) + '분' : s + '초'; }
   function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); }
-  function doPlay(){ if(!ready()) return; player.playVideo(); flash('▶ 재생'); }
+  function doPlay(){ if(!ready()) return; resumePlay(); flash('▶ 재생'); }
+  // 안드로이드: 음성 인식이 켜진 채로 재생하면 영상이 멈추므로, 인식을 먼저 끄고 재생
+  function resumePlay(){
+    if(!wantListening){ player.playVideo(); return; }
+    stopRecOnly();
+    setTimeout(() => player.playVideo(), 300);
+    setTimeout(syncListenMode, 2000); // 재생이 안 됐으면 다시 듣기
+  }
   function seekBy(sec){
     if(!ready()) return;
     const d = player.getDuration() || Infinity;
@@ -301,8 +304,8 @@
     switch(c.type){
       case 'pause': doPause(); break;
       case 'play': doPlay(); break;
-      case 'seek': seekBy(c.sec); break;
-      case 'restart': doRestart(); break;
+      case 'seek': seekBy(c.sec); if(playerReady) resumePlay(); break;
+      case 'restart': doRestart(); if(playerReady) resumePlay(); break;
     }
   }
 
@@ -315,7 +318,7 @@
                (m, a, b) => String((a ? KD[a] : 1) * 10 + (b ? KD[b] : 0)))
       .replace(/(^|[^\d])([일이삼사오육칠팔구])(?=초|분)/g, (m, p, a) => p + KD[a]);
   }
-  const CMD_RE = /(\d+)(초|분)(?:만큼)?(뒤로|전으로|앞으로|뒤|앞)|처음부터|일시정지|멈춰|멈춤|멈추|그만|정지|스톱|스탑|stop|pause|재생|플레이|play|계속|틀어|되감기|뒤로|앞으로|넘겨|건너뛰/g;
+  const CMD_RE = /(\d+)(초|분)(?:만큼)?(뒤로|전으로|앞으로|뒤|앞)|처음부터|일시정지|멈춰|멈춤|멈추|그만|잠깐|정지|스톱|스탑|stop|pause|재생|플레이|play|계속|틀어|되감기|뒤로|앞으로|넘겨|건너뛰/g;
 
   function parseCommands(raw){
     let t = raw.toLowerCase().replace(/\s+/g, '');
@@ -340,7 +343,7 @@
         out.push({ type: 'seek', sec: back ? -sec : sec });
       }
       else if(w === '처음부터') out.push({ type: 'restart' });
-      else if(/^(일시정지|멈춰|멈춤|멈추|그만|정지|스톱|스탑|stop|pause)$/.test(w)) out.push({ type: 'pause' });
+      else if(/^(일시정지|멈춰|멈춤|멈추|그만|잠깐|정지|스톱|스탑|stop|pause)$/.test(w)) out.push({ type: 'pause' });
       else if(/^(재생|플레이|play|계속|틀어)$/.test(w)) out.push({ type: 'play' });
       else if(/^(되감기|뒤로)$/.test(w)) out.push({ type: 'seek', sec: -settings.skip });
       else out.push({ type: 'seek', sec: settings.skip });
@@ -348,166 +351,215 @@
     return out;
   }
 
-  /* ---------- 음성 인식 (폰 안에서 직접 처리, Vosk) ---------- */
-  const VOSK_SRC = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
-  let voskModel = null, modelLoading = null;
-  let wantListening = false, recActive = false;
-  let audioCtx = null, mediaStream = null, srcNode = null, procNode = null, sinkNode = null, recognizer = null;
-  let utterDone = 0;
+  /* ---------- 음성 인식 ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, wantListening = false, recActive = false, recStarting = false, session = 0;
+  let handled = new Map(), restartTimer, startedAt = 0, quickFails = 0;
+  let lastExec = { sig: '', time: 0, key: '' };
 
-  function setModelUI(msg, kind){
-    const el = $('#modelStatus');
-    el.textContent = msg;
-    el.className = kind || '';
-  }
   function setMicUI(){
     const pill = $('#pill');
     $('#micBtn').classList.toggle('on', wantListening);
     $('#micText').textContent = wantListening ? '음성 명령 끄기' : '음성 명령 켜기';
     pill.classList.toggle('on', wantListening && recActive);
-    $('#pillText').textContent = wantListening ? (recActive ? '듣는 중' : '준비 중…') : '음성 꺼짐';
+    $('#pillText').textContent = !wantListening ? '음성 꺼짐' : detector ? '소리 감지 중' : recActive ? '듣는 중' : '연결 중…';
+    pill.classList.toggle('on', wantListening && (recActive || !!detector));
   }
-  function loadScript(src){
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error('script'));
-      document.head.appendChild(s);
-    });
+
+  function startRec(){
+    if(!wantListening || playingNow()) return;
+    recStarting = true;
+    const my = ++session;
+    handled = new Map();
+    try{ rec = new SR(); }catch(e){ setStatus('음성 인식을 시작할 수 없어요.', 'err'); return; }
+    rec.lang = 'ko-KR';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      if(my !== session) return;
+      recActive = true; recStarting = false; startedAt = Date.now();
+      setStatus('');
+      setMicUI();
+    };
+    rec.onresult = e => {
+      if(my !== session) return;
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const r = e.results[i];
+        const text = r[0].transcript;
+        const heard = $('#heard');
+        heard.textContent = text.trim() || '—';
+        heard.classList.toggle('interim', !r.isFinal);
+
+        const cmds = parseCommands(text);
+        const key = my + ':' + i;
+        const done = handled.get(key) || 0;
+        for(let k = done; k < cmds.length; k++){
+          const c = cmds[k];
+          const sig = c.type + (c.sec || '');
+          const now = Date.now();
+          // 안드로이드에서 같은 말이 다른 결과로 중복되어 오는 경우 방지
+          if(sig === lastExec.sig && key !== lastExec.key && now - lastExec.time < 1500) continue;
+          lastExec = { sig, time: now, key };
+          runCommand(c);
+        }
+        if(cmds.length > done) handled.set(key, cmds.length);
+      }
+    };
+    rec.onerror = e => {
+      if(my !== session) return;
+      if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+        wantListening = false;
+        setStatus('마이크 권한이 꺼져 있어요. 브라우저 주소창의 사이트 설정에서 마이크를 허용해 주세요.', 'err');
+        releaseWakeLock();
+      } else if(e.error === 'network'){
+        setStatus('음성 인식에 인터넷 연결이 필요해요.', 'warn');
+      } else if(e.error === 'audio-capture'){
+        setStatus('마이크를 찾을 수 없어요.', 'err');
+      }
+      // no-speech, aborted 는 조용히 재시작
+    };
+    rec.onend = () => {
+      if(my !== session) return;
+      recActive = false; recStarting = false;
+      setMicUI();
+      if(!wantListening || playingNow()) return;
+      // 금방 끊기기를 반복하면 재시작 간격을 늘림
+      quickFails = (Date.now() - startedAt < 1500) ? quickFails + 1 : 0;
+      const delay = Math.min(5000, 200 * Math.pow(2, quickFails));
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startRec, delay);
+    };
+
+   
+    try{ rec.start(); }
+    catch(e){
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startRec, 800);
+    }
+    setMicUI();
   }
-  function openModel(url){
-    return new Promise((resolve, reject) => {
-      const m = new Vosk.Model(url);
-      const fail = msg => { try{ m.worker.terminate(); }catch(e){} reject(new Error(msg)); };
-      m.on('load', msg => msg.result ? resolve(m) : fail('load'));
-      m.on('error', msg => fail(msg.error || 'error'));
-    });
-  }
-  async function loadModel(url){
-    setModelUI('음성 모델 불러오는 중… (처음엔 30초 정도 걸릴 수 있어요)');
-    try{
-      if(!window.Vosk) await loadScript(VOSK_SRC);
-    }catch(e){
-      setModelUI('음성 엔진을 받지 못했어요. 인터넷 연결을 확인하고 새로고침 해주세요.', 'err');
+
+  function startListening(){
+    if(!SR){
+      setStatus('이 브라우저는 음성 인식을 지원하지 않아요. 크롬에서 열어주세요.', 'err');
       return;
     }
-    try{
-      voskModel = await openModel(url);
-      setModelUI('음성 모델 준비됨 ✓', 'ok');
-    }catch(e){
-      voskModel = null;
-      store.set('modelUrl', '');
-      setModelUI('저장된 음성 모델을 찾지 못했어요. 모델 파일을 다시 선택해주세요.', 'err');
-      $('#modelBox').open = true;
+    if(!window.isSecureContext){
+      setStatus('마이크는 https 주소에서만 쓸 수 있어요.', 'err');
+      return;
     }
-  }
-  function deleteDB(name){
-    return new Promise(res => {
-      try{ const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); }
-      catch(e){ res(); }
-    });
-  }
-  async function installModel(file){
-    if(!file) return;
-    if(!/\.(zip|tar\.gz|tgz)$/i.test(file.name)){ setModelUI('내려받은 zip 파일을 선택해주세요.', 'err'); return; }
-    stopListening();
-    if(voskModel){ try{ voskModel.worker.terminate(); }catch(e){} voskModel = null; }
-    await deleteDB('/vosk'); // 예전에 저장한 모델 지우기
-    try{ if(navigator.storage && navigator.storage.persist) await navigator.storage.persist(); }catch(e){}
-    const url = URL.createObjectURL(file);
-    store.set('modelUrl', url); // 이 주소가 저장 위치의 이름이 됨 (다음부터는 저장된 모델을 바로 씀)
-    modelLoading = loadModel(url);
-    await modelLoading;
-    if(voskModel) setStatus('');
-  }
-
-  function handleText(text, isFinal){
-    text = (text || '').trim();
-    if(text){
-      const heard = $('#heard');
-      heard.textContent = text;
-      heard.classList.toggle('interim', !isFinal);
-    }
-    const cmds = text ? parseCommands(text) : [];
-    for(let k = utterDone; k < cmds.length; k++) runCommand(cmds[k]);
-    utterDone = Math.max(utterDone, cmds.length);
-    if(isFinal) utterDone = 0;
-  }
-
-  function stopAudio(){
-    try{ if(procNode){ procNode.onaudioprocess = null; procNode.disconnect(); } }catch(e){}
-    try{ srcNode && srcNode.disconnect(); }catch(e){}
-    try{ mediaStream && mediaStream.getTracks().forEach(t => t.stop()); }catch(e){}
-    try{ recognizer && recognizer.remove(); }catch(e){}
-    procNode = srcNode = mediaStream = recognizer = null;
-    recActive = false;
-  }
-
-  async function startListening(){
-    if(!window.isSecureContext){ setStatus('마이크는 https 주소에서만 쓸 수 있어요.', 'err'); return; }
-    if(!navigator.mediaDevices || !window.WebAssembly){ setStatus('이 브라우저에서는 음성 명령을 쓸 수 없어요.', 'err'); return; }
     wantListening = true;
-    setMicUI();
+    quickFails = 0;
     try{
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
       audioCtx.resume();
     }catch(e){}
-    if(!voskModel){
-      if(!modelLoading){
-        wantListening = false; setMicUI();
-        setStatus('먼저 아래 "음성 모델"에서 모델 파일을 선택해주세요.', 'warn');
-        $('#modelBox').open = true;
-        return;
-      }
-      setStatus('음성 모델을 불러오는 중이에요. 잠시만요…');
-      await modelLoading;
-      if(!voskModel){ wantListening = false; setMicUI(); setStatus(''); return; }
-      if(!wantListening) return;
-    }
-    stopAudio();
-    try{
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-        video: false
-      });
-    }catch(e){
-      wantListening = false; setMicUI();
-      setStatus(e && e.name === 'NotAllowedError'
-        ? '마이크 권한이 꺼져 있어요. 주소창의 사이트 설정에서 마이크를 허용해 주세요.'
-        : '마이크를 켤 수 없어요.', 'err');
-      return;
-    }
-    if(!wantListening){ stopAudio(); return; }
-    try{ await audioCtx.resume(); }catch(e){}
-
-    recognizer = new voskModel.KaldiRecognizer(audioCtx.sampleRate);
-    utterDone = 0;
-    recognizer.on('partialresult', m => handleText(m.result.partial, false));
-    recognizer.on('result', m => handleText(m.result.text, true));
-
-    srcNode = audioCtx.createMediaStreamSource(mediaStream);
-    procNode = audioCtx.createScriptProcessor(4096, 1, 1);
-    sinkNode = sinkNode || audioCtx.createMediaStreamDestination(); // 스피커로 내보내지 않음
-    procNode.onaudioprocess = ev => { try{ recognizer && recognizer.acceptWaveform(ev.inputBuffer); }catch(e){} };
-    srcNode.connect(procNode);
-    procNode.connect(sinkNode);
-
-    mediaStream.getAudioTracks()[0].addEventListener('ended', () => {
-      if(!wantListening) return;
-      stopAudio(); wantListening = false; setMicUI();
-      setStatus('마이크가 끊겼어요. 다시 켜주세요.', 'warn');
-    });
-    recActive = true;
-    setStatus('');
     requestWakeLock();
-    setMicUI();
+    syncListenMode();
   }
   function stopListening(){
     wantListening = false;
-    stopAudio();
+    session++;
+    clearTimeout(restartTimer);
+    try{ rec && rec.abort(); }catch(e){}
+    recActive = false; recStarting = false;
+    stopDetector();
     releaseWakeLock();
     setMicUI();
+  }
+
+  /* ---------- 재생 중에는 소리 크기만 감지 (음성 인식이 영상을 멈추게 하므로) ---------- */
+  let audioCtx = null, detector = null;
+  function playingNow(){
+    if(!playerReady) return false;
+    const st = player.getPlayerState();
+    return st === YT.PlayerState.PLAYING || st === YT.PlayerState.BUFFERING;
+  }
+  function stopRecOnly(){
+    session++;
+    clearTimeout(restartTimer);
+    try{ rec && rec.abort(); }catch(e){}
+    rec = null; recActive = false; recStarting = false;
+    setMicUI();
+  }
+  function syncListenMode(){
+    if(!wantListening) return;
+    if(playingNow()){
+      stopRecOnly();
+      startDetector();
+    } else {
+      stopDetector();
+      if(!recActive && !recStarting){ clearTimeout(restartTimer); startRec(); }
+    }
+    setMicUI();
+  }
+  function stopDetector(){
+    const d = detector;
+    detector = null;
+    if(d){
+      d.stopped = true;
+      clearInterval(d.timer);
+      try{ d.src && d.src.disconnect(); }catch(e){}
+      try{ d.stream && d.stream.getTracks().forEach(t => t.stop()); }catch(e){}
+    }
+    $('#meter').hidden = true;
+    setMicUI();
+  }
+  async function startDetector(){
+    if(detector) return;
+    const d = detector = { stopped: false };
+    setMicUI();
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }, video: false
+      });
+    }catch(e){
+      if(detector === d) detector = null;
+      setStatus('마이크를 켤 수 없어요.', 'err');
+      setMicUI();
+      return;
+    }
+    if(d.stopped){ stream.getTracks().forEach(t => t.stop()); return; }
+    d.stream = stream;
+    try{ audioCtx.resume(); }catch(e){}
+    d.src = audioCtx.createMediaStreamSource(stream);
+    const an = audioCtx.createAnalyser();
+    an.fftSize = 1024;
+    d.src.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    const t0 = Date.now();
+    let floor = 0.005, loudSince = 0;
+    const meter = $('#meter'), bar = $('#meterBar'), mark = $('#meterMark');
+    meter.hidden = false;
+    $('#heard').textContent = '영상 재생 중: 크게 "잠깐!" 하면 멈춰요';
+    $('#heard').classList.add('interim');
+    d.timer = setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for(let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      const now = Date.now();
+      // 주변 소리(영상 소리 포함) 크기를 천천히 따라감
+      floor = rms < floor ? floor * 0.9 + rms * 0.1 : floor * 0.995 + rms * 0.005;
+      const th = Math.max(floor * settings.sens, 0.015);
+      const scale = v => Math.min(100, Math.sqrt(v / 0.3) * 100);
+      bar.style.width = scale(rms) + '%';
+      mark.style.left = scale(th) + '%';
+      bar.classList.toggle('hot', rms > th);
+      if(now - t0 < 1000) return; // 켜진 직후는 무시
+      if(rms > th){
+        if(!loudSince) loudSince = now;
+        if(now - loudSince >= 150 && detector === d){
+          stopDetector();
+          if(playerReady) player.pauseVideo();
+          flash('✋ 멈춤 · 명령을 말하세요');
+          $('#heard').textContent = '멈췄어요. 명령을 말하세요';
+        }
+      } else loudSince = 0;
+    }, 50);
   }
 
   /* ---------- 화면 꺼짐 방지 ---------- */
@@ -527,9 +579,10 @@
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState === 'visible' && wantListening){
       requestWakeLock();
+      quickFails = 0;
       try{ audioCtx && audioCtx.resume(); }catch(e){}
-      const tr = mediaStream && mediaStream.getAudioTracks()[0];
-      if(!tr || tr.readyState === 'ended') startListening();
+      stopDetector();
+      syncListenMode();
     }
   });
 
@@ -561,6 +614,8 @@
   }
   $('#skipSel').value = String(settings.skip);
   $('#skipSel').addEventListener('change', e => { settings.skip = +e.target.value; store.set('skip', settings.skip); applySkipLabels(); });
+  $('#sensSel').value = String(settings.sens);
+  $('#sensSel').addEventListener('change', e => { settings.sens = +e.target.value; store.set('sens', settings.sens); });
   $('#wakeChk').checked = settings.wake;
   $('#wakeChk').addEventListener('change', e => { settings.wake = e.target.checked; store.set('wake', settings.wake); });
   $('#wakeWord').value = settings.wakeWord;
@@ -574,11 +629,8 @@
     const v = parseYouTube(last);
     if(v) loadVideo(v);
   }
-  const savedModel = store.get('modelUrl', '');
-  if(savedModel) modelLoading = loadModel(savedModel);
-  else { setModelUI('음성 모델이 아직 없어요. 아래 순서대로 한 번만 준비해주세요.', 'warn'); $('#modelBox').open = true; }
-  $('#modelFile').addEventListener('change', e => { installModel(e.target.files[0]); e.target.value = ''; });
-  if(!window.isSecureContext) setStatus('마이크를 쓰려면 https 주소로 열어야 해요.', 'warn');
+  if(!SR) setStatus('이 브라우저는 음성 인식을 지원하지 않아요. 크롬을 권장해요.', 'warn');
+  else if(!window.isSecureContext) setStatus('마이크를 쓰려면 https 주소로 열어야 해요.', 'warn');
   setMicUI();
 })();
 </script>
