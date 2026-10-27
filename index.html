@@ -238,7 +238,7 @@
           if(pending && pending.id !== v.id) player.cueVideoById({ videoId: pending.id, startSeconds: pending.start });
           updatePlayBtn();
         },
-        onStateChange: updatePlayBtn,
+        onStateChange: onPlayerState,
         onError(e){
           const msg = { 2: '링크가 올바르지 않아요.', 5: '이 기기에서 재생할 수 없는 영상이에요.',
                         100: '영상을 찾을 수 없어요 (삭제되었거나 비공개).',
@@ -268,10 +268,47 @@
     $('#playLabel').textContent = playing ? '일시정지' : '재생';
   }
 
+  /* ---------- 안드로이드 보정: 음성 인식이 켜지고 꺼질 때 영상이 저절로 멈추거나 재생되는 것 되돌리기 ---------- */
+  let wantPlaying = false, recTransitionAt = 0, iframeTouchAt = 0, fixes = [];
+  const nearRecTransition = () => Date.now() - recTransitionAt < 1500;
+  // 영상 화면을 직접 누르면 사용자 조작으로 인정
+  window.addEventListener('blur', () => {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if(a && a.tagName === 'IFRAME'){
+        iframeTouchAt = Date.now();
+        setTimeout(() => { try{ a.blur(); }catch(e){} }, 300);
+      }
+    }, 0);
+  });
+  function onPlayerState(e){
+    updatePlayBtn();
+    const S = YT.PlayerState;
+    if(e.data === S.ENDED){ wantPlaying = false; return; }
+    if(e.data !== S.PLAYING && e.data !== S.PAUSED) return;
+    const playing = e.data === S.PLAYING;
+    if(playing === wantPlaying) return;
+    const byUser = Date.now() - iframeTouchAt < 1500;
+    if(wantListening && nearRecTransition() && !byUser){
+      const now = Date.now();
+      fixes = fixes.filter(t => now - t < 10000);
+      if(fixes.length < 4){
+        fixes.push(now);
+        setTimeout(() => {
+          if(!playerReady) return;
+          wantPlaying ? player.playVideo() : player.pauseVideo();
+        }, 250);
+        return;
+      }
+      setStatus('이 기기에서는 음성 인식이 영상 재생을 계속 방해하고 있어요.', 'warn');
+    }
+    wantPlaying = playing; // 영상 화면에서 직접 조작한 것으로 판단
+  }
+
   /* ---------- 명령 실행 ---------- */
   function fmtSec(s){ return s >= 60 && s % 60 === 0 ? (s/60) + '분' : s + '초'; }
-  function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); }
-  function doPlay(){ if(!ready()) return; player.playVideo(); flash('▶ 재생'); }
+  function doPause(){ if(!ready()) return; wantPlaying = false; player.pauseVideo(); flash('⏸ 일시정지'); }
+  function doPlay(){ if(!ready()) return; wantPlaying = true; player.playVideo(); flash('▶ 재생'); }
   function seekBy(sec){
     if(!ready()) return;
     const d = player.getDuration() || Infinity;
@@ -358,7 +395,7 @@
 
     rec.onstart = () => {
       if(my !== session) return;
-      recActive = true; startedAt = Date.now();
+      recActive = true; startedAt = Date.now(); recTransitionAt = Date.now();
       setStatus('');
       setMicUI();
     };
@@ -401,7 +438,7 @@
     };
     rec.onend = () => {
       if(my !== session) return;
-      recActive = false;
+      recActive = false; recTransitionAt = Date.now();
       setMicUI();
       if(!wantListening) return;
       // 금방 끊기기를 반복하면 재시작 간격을 늘림
@@ -411,6 +448,7 @@
       restartTimer = setTimeout(startRec, delay);
     };
 
+    recTransitionAt = Date.now();
     try{ rec.start(); }
     catch(e){
       clearTimeout(restartTimer);
