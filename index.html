@@ -250,7 +250,7 @@
           if(pending && pending.id !== v.id) player.cueVideoById({ videoId: pending.id, startSeconds: pending.start });
           updatePlayBtn();
         },
-        onStateChange: () => { updatePlayBtn(); syncListenMode(); },
+        onStateChange: () => { updatePlayBtn(); if(!resuming) syncListenMode(); },
         onError(e){
           const msg = { 2: '링크가 올바르지 않아요.', 5: '이 기기에서 재생할 수 없는 영상이에요.',
                         100: '영상을 찾을 수 없어요 (삭제되었거나 비공개).',
@@ -285,11 +285,41 @@
   function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); }
   function doPlay(){ if(!ready()) return; resumePlay(); flash('▶ 재생'); }
   // 안드로이드: 음성 인식이 켜진 채로 재생하면 영상이 멈추므로, 인식을 먼저 끄고 재생
+  let resuming = false;
   function resumePlay(){
     if(!wantListening){ player.playVideo(); return; }
+    resuming = true;
+    // 음성 인식이 완전히 꺼진 뒤에 재생 (켜져 있는 동안엔 안드로이드가 재생을 막음)
+    let went = false;
+    const go = () => { if(went) return; went = true; setTimeout(() => tryPlay(3), 400); };
+    const r = rec;
+    if(r && (recActive || recStarting)) r.onend = go;
     stopRecOnly();
-    setTimeout(() => player.playVideo(), 300);
-    setTimeout(syncListenMode, 2000); // 재생이 안 됐으면 다시 듣기
+    if(!r || !r.onend || r.onend !== go) go();
+    setTimeout(go, 1500); // 꺼짐 신호가 안 와도 진행
+  }
+  function tryPlay(n){
+    if(!playerReady || !wantListening){ resuming = false; return; }
+    player.playVideo();
+    setTimeout(() => {
+      if(!wantListening){ resuming = false; return; }
+      if(playingNow()){
+        // 1초 더 지켜보고, 저절로 멈추면 다시 시도
+        setTimeout(() => {
+          if(!playingNow() && n > 1) tryPlay(n - 1);
+          else finishResume();
+        }, 1000);
+      } else if(n > 1) tryPlay(n - 1);
+      else {
+        finishResume();
+        setStatus('음성으로 재생이 안 됐어요. 재생 버튼을 눌러주세요.', 'warn');
+      }
+    }, 1200);
+  }
+  function finishResume(){
+    resuming = false;
+    if(playingNow()) setStatus('');
+    syncListenMode();
   }
   function seekBy(sec){
     if(!ready()) return;
@@ -491,14 +521,20 @@
       startDetector();
     } else {
       stopDetector();
-      if(!recActive && !recStarting){ clearTimeout(restartTimer); startRec(); }
+      if(!recActive && !recStarting){
+        clearTimeout(restartTimer);
+        const wait = Math.max(0, 600 - (Date.now() - detectorStoppedAt));
+        restartTimer = setTimeout(startRec, wait);
+      }
     }
     setMicUI();
   }
+  let detectorStoppedAt = 0;
   function stopDetector(){
     const d = detector;
     detector = null;
     if(d){
+      detectorStoppedAt = Date.now();
       d.stopped = true;
       clearInterval(d.timer);
       try{ d.src && d.src.disconnect(); }catch(e){}
