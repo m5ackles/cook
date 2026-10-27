@@ -56,11 +56,6 @@
   .heard .label{font-size:13px;color:var(--muted);margin-bottom:4px}
   #heard{font-size:20px;font-weight:600;min-height:28px;word-break:keep-all;overflow-wrap:anywhere}
   #heard.interim{color:var(--muted)}
-  #meter{position:relative;height:10px;border-radius:5px;background:var(--surface2);margin:8px 0 4px;overflow:hidden}
-  #meter[hidden]{display:none}
-  #meterBar{height:100%;width:0;background:var(--muted);transition:width .05s}
-  #meterBar.hot{background:var(--accent)}
-  #meterMark{position:absolute;top:0;bottom:0;width:2px;background:var(--text);left:0}
   #status{font-size:14px;color:var(--muted);min-height:20px}
   #status.warn{color:var(--warn)} #status.err{color:var(--danger)}
 
@@ -125,7 +120,6 @@
     <div class="heard">
       <div class="label">들은 말</div>
       <div id="heard">—</div>
-      <div id="meter" hidden><div id="meterBar"></div><div id="meterMark"></div></div>
       <div id="status"></div>
     </div>
 
@@ -144,7 +138,6 @@
         <dt>앞으로 · 넘겨</dt><dd>설정한 시간만큼 앞으로</dd>
         <dt>10초 뒤로 · 1분 앞으로</dt><dd>말한 시간만큼 이동</dd>
         <dt>처음부터</dt><dd>처음으로 이동</dd>
-        <dt>재생 중</dt><dd>"멈춰" 하고 크게 말하면 멈춘 뒤 다시 명령을 들어요</dd>
       </dl>
     </details>
 
@@ -155,10 +148,6 @@
         <select id="skipSel"><option value="3">3초</option><option value="5">5초</option><option value="10">10초</option><option value="15">15초</option></select>
       </div>
       <div class="setting">
-        <label for="sensSel">재생 중 멈춤 감도</label>
-        <select id="sensSel"><option value="2.5">민감하게</option><option value="4">보통</option><option value="6">둔하게</option></select>
-      </div>
-      <div class="setting">
         <label for="wakeChk">호출어 사용</label>
         <input id="wakeChk" type="checkbox">
       </div>
@@ -166,7 +155,7 @@
         <label for="wakeWord">호출어</label>
         <input id="wakeWord" type="text" placeholder="요리야">
       </div>
-      <p class="tip">재생 중에는 큰 소리로 멈춥니다. 영상 소리만으로 자꾸 멈추면 감도를 "둔하게", 내 목소리에 잘 안 멈추면 "민감하게"로 바꾸세요.<br><br>영상 속 말소리가 명령으로 잘못 인식되면 영상 볼륨을 조금 낮추거나 호출어를 켜세요. 호출어를 켜면 "요리야 멈춰"처럼 호출어를 먼저 말해야 해요.</p>
+      <p class="tip">영상 속 말소리가 명령으로 잘못 인식되면 영상 볼륨을 조금 낮추거나 호출어를 켜세요. 호출어를 켜면 "요리야 멈춰"처럼 호출어를 먼저 말해야 해요.</p>
     </details>
   </aside>
 </main>
@@ -182,8 +171,7 @@
   const settings = {
     skip: store.get('skip', 5),
     wake: store.get('wake', false),
-    wakeWord: store.get('wakeWord', '요리야'),
-    sens: store.get('sens', 4)
+    wakeWord: store.get('wakeWord', '요리야')
   };
 
   /* ---------- 화면 피드백 ---------- */
@@ -250,10 +238,7 @@
           if(pending && pending.id !== v.id) player.cueVideoById({ videoId: pending.id, startSeconds: pending.start });
           updatePlayBtn();
         },
-        onStateChange: e => {
-          updatePlayBtn();
-          if(hold && detector && (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED)) releaseHold();
-        },
+        onStateChange: updatePlayBtn,
         onError(e){
           const msg = { 2: '링크가 올바르지 않아요.', 5: '이 기기에서 재생할 수 없는 영상이에요.',
                         100: '영상을 찾을 수 없어요 (삭제되었거나 비공개).',
@@ -285,44 +270,8 @@
 
   /* ---------- 명령 실행 ---------- */
   function fmtSec(s){ return s >= 60 && s % 60 === 0 ? (s/60) + '분' : s + '초'; }
-  function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); if(hold) releaseHold(); }
-  function doPlay(){ if(!ready()) return; flash('▶ 재생'); if(wantListening) playAndHold(); else player.playVideo(); }
-
-  /* ---------- 재생 유지: 재생하는 동안엔 음성 인식을 끄고 큰 소리만 감지 ---------- */
-  let hold = false;
-  function playAndHold(){
-    hold = true;
-    let went = false;
-    const go = () => {
-      if(went) return; went = true;
-      setTimeout(() => { if(!hold) return; player.playVideo(); setTimeout(checkHold, 1500); }, 400);
-    };
-    const r = rec;
-    session++;
-    clearTimeout(restartTimer);
-    if(r && recActive){ r.onend = go; try{ r.abort(); }catch(e){ go(); } }
-    else { try{ r && r.abort(); }catch(e){} go(); }
-    rec = null; recActive = false;
-    setMicUI();
-    setTimeout(go, 1500); // 꺼짐 신호가 안 와도 진행
-  }
-  function checkHold(){
-    if(!hold) return;
-    if(isPlaying()){ startDetector(); return; }
-    player.playVideo();
-    setTimeout(() => {
-      if(!hold) return;
-      if(isPlaying()) startDetector();
-      else { releaseHold(); setStatus('음성으로 재생이 안 됐어요. 재생 버튼을 눌러주세요.', 'warn'); }
-    }, 1500);
-  }
-  function releaseHold(){
-    hold = false;
-    stopDetector();
-    clearTimeout(restartTimer);
-    if(wantListening) restartTimer = setTimeout(startRec, 800);
-    setMicUI();
-  }
+  function doPause(){ if(!ready()) return; player.pauseVideo(); flash('⏸ 일시정지'); }
+  function doPlay(){ if(!ready()) return; player.playVideo(); flash('▶ 재생'); }
   function seekBy(sec){
     if(!ready()) return;
     const d = player.getDuration() || Infinity;
@@ -394,12 +343,11 @@
     $('#micBtn').classList.toggle('on', wantListening);
     $('#micText').textContent = wantListening ? '음성 명령 끄기' : '음성 명령 켜기';
     pill.classList.toggle('on', wantListening && recActive);
-    $('#pillText').textContent = !wantListening ? '음성 꺼짐' : hold ? '재생 중 · 큰 소리로 멈춤' : recActive ? '듣는 중' : '연결 중…';
-    pill.classList.toggle('on', wantListening && (recActive || hold));
+    $('#pillText').textContent = wantListening ? (recActive ? '듣는 중' : '연결 중…') : '음성 꺼짐';
   }
 
   function startRec(){
-    if(!wantListening || hold) return;
+    if(!wantListening) return;
     const my = ++session;
     handled = new Map();
     try{ rec = new SR(); }catch(e){ setStatus('음성 인식을 시작할 수 없어요.', 'err'); return; }
@@ -455,7 +403,7 @@
       if(my !== session) return;
       recActive = false;
       setMicUI();
-      if(!wantListening || hold) return;
+      if(!wantListening) return;
       // 금방 끊기기를 반복하면 재시작 간격을 늘림
       quickFails = (Date.now() - startedAt < 1500) ? quickFails + 1 : 0;
       const delay = Math.min(5000, 200 * Math.pow(2, quickFails));
@@ -463,7 +411,6 @@
       restartTimer = setTimeout(startRec, delay);
     };
 
-   
     try{ rec.start(); }
     catch(e){
       clearTimeout(restartTimer);
@@ -492,76 +439,8 @@
     clearTimeout(restartTimer);
     try{ rec && rec.abort(); }catch(e){}
     recActive = false;
-    hold = false;
-    stopDetector();
     releaseWakeLock();
     setMicUI();
-  }
-
-  /* ---------- 재생 중 큰 소리 감지 ---------- */
-  let detector = null;
-  function stopDetector(){
-    const d = detector;
-    detector = null;
-    if(d){
-      d.stopped = true;
-      clearInterval(d.timer);
-      try{ d.stream && d.stream.getTracks().forEach(t => t.stop()); }catch(e){}
-      try{ d.ctx && d.ctx.close(); }catch(e){} // 마이크를 완전히 놓아줌
-    }
-    $('#meter').hidden = true;
-  }
-  async function startDetector(){
-    if(detector || !hold) return;
-    const d = detector = { stopped: false };
-    let stream;
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }, video: false
-      });
-    }catch(e){
-      if(detector === d) detector = null;
-      setStatus('재생 중 소리 감지를 켤 수 없어요. 멈출 땐 버튼을 눌러주세요.', 'warn');
-      return;
-    }
-    if(d.stopped){ stream.getTracks().forEach(t => t.stop()); return; }
-    d.stream = stream;
-    d.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    try{ await d.ctx.resume(); }catch(e){}
-    if(d.stopped){ stopDetector(); return; }
-    const an = d.ctx.createAnalyser();
-    an.fftSize = 1024;
-    d.ctx.createMediaStreamSource(stream).connect(an);
-    const buf = new Float32Array(an.fftSize);
-    const t0 = Date.now();
-    let floor = 0.005, loudSince = 0;
-    const meter = $('#meter'), bar = $('#meterBar'), mark = $('#meterMark');
-    meter.hidden = false;
-    $('#heard').textContent = '재생 중: "멈춰" 하고 크게 말하면 멈춰요';
-    $('#heard').classList.add('interim');
-    d.timer = setInterval(() => {
-      an.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for(let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-      const rms = Math.sqrt(sum / buf.length);
-      const now = Date.now();
-      floor = rms < floor ? floor * 0.9 + rms * 0.1 : floor * 0.995 + rms * 0.005;
-      const th = Math.max(floor * settings.sens, 0.015);
-      const scale = v => Math.min(100, Math.sqrt(v / 0.3) * 100);
-      bar.style.width = scale(rms) + '%';
-      mark.style.left = scale(th) + '%';
-      bar.classList.toggle('hot', rms > th);
-      if(now - t0 < 1000) return;
-      if(rms > th){
-        if(!loudSince) loudSince = now;
-        if(now - loudSince >= 150 && detector === d){
-          player.pauseVideo();
-          flash('⏸ 일시정지');
-          $('#heard').textContent = '멈췄어요. 명령을 말하세요';
-          releaseHold();
-        }
-      } else loudSince = 0;
-    }, 50);
   }
 
   /* ---------- 화면 꺼짐 방지 ---------- */
@@ -581,8 +460,7 @@
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState === 'visible' && wantListening){
       requestWakeLock();
-      if(hold){ stopDetector(); startDetector(); }
-      else if(!recActive){ clearTimeout(restartTimer); quickFails = 0; startRec(); }
+      if(!recActive){ clearTimeout(restartTimer); quickFails = 0; startRec(); }
     }
   });
 
@@ -614,8 +492,6 @@
   }
   $('#skipSel').value = String(settings.skip);
   $('#skipSel').addEventListener('change', e => { settings.skip = +e.target.value; store.set('skip', settings.skip); applySkipLabels(); });
-  $('#sensSel').value = String(settings.sens);
-  $('#sensSel').addEventListener('change', e => { settings.sens = +e.target.value; store.set('sens', settings.sens); });
   $('#wakeChk').checked = settings.wake;
   $('#wakeChk').addEventListener('change', e => { settings.wake = e.target.checked; store.set('wake', settings.wake); });
   $('#wakeWord').value = settings.wakeWord;
