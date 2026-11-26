@@ -612,11 +612,12 @@ function tapRegion(id){
   sfx('tap',0.4);S.sel=id;render();suggest(true);
 }
 function spawnBubble(){
-  const mine=IDS.filter(i=>S.reg[i].c>=8);if(!mine.length||bubbles.length>=4)return;
-  const id=pick(mine),[x,y]=pick(CELLS[id]);
+  const mine=IDS.filter(i=>S.shops[i]&&S.reg[i].c>=8);if(!mine.length||bubbles.length>=4)return;
+  const id=pick(mine),[px,py]=shopPos(id),j=Math.min(FW,FH)*0.012,x=px+rnd(-j,j),y=py+rnd(-j,j);
   bubbles.push({k:++bubbleKey,x,y,v:Math.round((10+S.lvl*8)*rnd(0.8,1.4)),t:S.t});drawBubbles();
 }
-function drawBubbles(){const k=V.w/Math.max(1,$('mapBox').clientWidth)*1.25;$('bubbles').innerHTML=bubbles.map(b=>`<g class="bubble" data-k="${b.k}" transform="translate(${b.x},${b.y}) scale(${k})"><circle r="11"/><text y="5" text-anchor="middle" font-size="13">💰</text></g>`).join('')}
+function shopPos(id){const sh=S.shops[id];if(!sh.pos)sh.pos=pick(CELLS[id]);return sh.pos}
+function drawBubbles(){const k=V.w/Math.max(1,$('mapBox').clientWidth)*1.25;$('bubbles').innerHTML=Object.keys(S&&S.shops||{}).map(id=>{const [x,y]=shopPos(id);return `<g transform="translate(${x},${y}) scale(${k})" style="pointer-events:none"><circle r="9" fill="#2c63e0" stroke="#fff" stroke-width="2"/><text y="4.5" text-anchor="middle" font-size="11">🏪</text></g>`}).join('')+bubbles.map(b=>`<g class="bubble" data-k="${b.k}" transform="translate(${b.x},${b.y}) scale(${k})"><circle r="11"/><text y="5" text-anchor="middle" font-size="13">💰</text></g>`).join('')}
 function popBubble(k,e){const i=bubbles.findIndex(b=>b.k===k);if(i<0)return;sfx('coin_pop',0.7);const b=bubbles[i];bubbles.splice(i,1);drawBubbles();S.coins+=b.v;S.total+=b.v;floatTxt('+'+b.v+' 💰','#ffd34a',e.clientX,e.clientY);checkLevel();render()}
 
 /* ================== 루프 ================== */
@@ -626,7 +627,7 @@ function tick(dt){
   for(const k in S.buffs)S.buffs[k]=Math.max(0,S.buffs[k]-dt);
   const mg={dump:2,std:1,mono:0.5}[S.mode];
   IDS.forEach(id=>{const r=S.reg[id];if(r.c>0&&r.c<100){let g=0.55/r.res*mg;const R=S.riv[REG[id].rv];if(S.shops[id])g*=1+0.25*(S.shops[id].stage+1);if(S.bGrow&&S.bGrow.until>S.clock)g*=1+S.bGrow.p/100;if(R.gone)g*=1.8;else if(R.hp<30)g*=1.4;if(S.buffs.grow>0)g*=1.5;r.c=Math.min(100,r.c+g*dt)}});
-  IDS.forEach(id=>{if(S.reg[id].c>=40)ADJ[id].forEach(n=>{if(S.reg[n].c<3)S.reg[n].c+=0.3*dt})});
+  IDS.forEach(id=>{if(S.reg[id].c>=40)ADJ[id].forEach(n=>{if(S.reg[n].c<3){const was=S.reg[n].c;S.reg[n].c+=0.3*dt;if(was<=0&&S.reg[n].c>0)news(`🌱 입소문이 퍼져 이웃 ${REG[n].n}에 자연 진출 (가게는 아직 없음)`,true)}})});
   for(const k in S.riv){const R=S.riv[k];if(R.gone)continue;
     if(S.mode==='dump'&&presence(k))R.hp-=0.5*dt;else R.hp=Math.min(100,R.hp+(k==='od'?0.3:0.15)*dt);
     R.dep=Math.max(0,R.dep-0.08*dt);if(R.hp<=0)bankrupt(k)}
