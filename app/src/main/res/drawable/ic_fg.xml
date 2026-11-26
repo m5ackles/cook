@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 왕관 쓴 버거 아이콘 (108x108, 가운데 66 안쪽이 보이는 영역) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFD34A" android:strokeColor="#5A3326" android:strokeWidth="1.6"
+        android:pathData="M42,40 L40,28 L47,34 L54,25 L61,34 L68,28 L66,40 Z" />
+    <path android:fillColor="#F2B35C" android:strokeColor="#5A3326" android:strokeWidth="1.8"
+        android:pathData="M32,56 Q32,40 54,40 Q76,40 76,56 Z" />
+    <path android:fillColor="#FFF6EC" android:pathData="M44,47 L46,46 M52,45 L54,44 M61,47 L63,46" android:strokeColor="#FFF6EC" android:strokeWidth="1.6" />
+    <path android:fillColor="#5CC46E" android:strokeColor="#5A3326" android:strokeWidth="1.4"
+        android:pathData="M30,56 L78,56 L76,61 L70,59 L64,62 L58,59 L52,62 L46,59 L40,62 L34,59 Z" />
+    <path android:fillColor="#7A4A2A" android:strokeColor="#5A3326" android:strokeWidth="1.6"
+        android:pathData="M31,60 L77,60 Q78,67 74,67 L34,67 Q30,67 31,60 Z" />
+    <path android:fillColor="#F2B35C" android:strokeColor="#5A3326" android:strokeWidth="1.8"
+        android:pathData="M32,67 L76,67 Q76,76 68,76 L40,76 Q32,76 32,67 Z" />
+</vector>
